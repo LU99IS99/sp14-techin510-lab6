@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 from dotenv import load_dotenv
 import streamlit as st
 import google.generativeai as genai
@@ -17,14 +18,27 @@ def get_text_from_pdf(file):
         text.append(page.extract_text())
     return "\n".join(text)
 
+# Function to process financial data from CSV
+def process_csv_data(data):
+    # Assuming data has columns 'Date', 'Description', and 'Amount'
+    data['Amount'] = pd.to_numeric(data['Amount'], errors='coerce')
+    return data
+
 # Function to analyze financial data and generate advice
-def analyze_and_advise(text_data, career, annual_income):
-    # Here you would need to add actual data analysis logic based on the extracted text
-    # For now, let's just prepare a sample advice prompt
-    advice_prompt = (
-        f"Generate personalized financial advice for a {career} with an annual income in the range of {annual_income}, "
-        f"based on their financial transactions documented in the provided text."
-    )
+def analyze_and_advise(text_data, career, annual_income, data_type):
+    if data_type == 'pdf':
+        # Process PDF data (currently using placeholder text for demonstration)
+        advice_prompt = (
+            f"Generate personalized financial advice for a {career} with an annual income in the range of {annual_income}, "
+            f"based on their financial transactions documented in the provided text."
+        )
+    elif data_type == 'csv':
+        # Process CSV data
+        advice_prompt = (
+            f"Generate personalized financial advice for a {career} earning {annual_income} annually, "
+            f"focusing on high spending and total monthly expenses."
+        )
+    
     advice = model.generate_content(advice_prompt)
     return advice.text
 
@@ -47,16 +61,26 @@ def main():
     ]
     annual_income = st.sidebar.selectbox("Select your annual income range", income_options)
 
-    # File uploader for bank statements in PDF format
-    uploaded_file = st.file_uploader("Upload your bank statement (PDF format)", type="pdf")
+    # File uploader for bank statements in PDF and CSV format
+    uploaded_file = st.file_uploader("Upload your bank statement (PDF or CSV format)", type=["pdf", "csv"])
     if uploaded_file is not None:
-        text_data = get_text_from_pdf(uploaded_file)
-        st.write("Bank statement uploaded and processed successfully!")
-        st.text_area("Preview of extracted text:", text_data, height=250)
+        file_type = uploaded_file.type
+        if file_type == "application/pdf":
+            text_data = get_text_from_pdf(uploaded_file)
+            data_type = 'pdf'
+            st.write("PDF file uploaded and processed successfully!")
+            st.text_area("Preview of extracted text:", text_data, height=250)
+        elif file_type == "text/csv":
+            data = pd.read_csv(uploaded_file)
+            data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
+            data = process_csv_data(data)
+            data_type = 'csv'
+            st.write("CSV file uploaded and processed successfully!")
+            st.write(data.head())  # Display a preview of the data
         
         if st.button("Analyze and Advise"):
             with st.spinner("Analyzing your financial data and generating advice..."):
-                advice = analyze_and_advise(text_data, career, annual_income)
+                advice = analyze_and_advise(text_data if data_type == 'pdf' else data, career, annual_income, data_type)
                 st.subheader("Personalized Financial Advice")
                 st.write(advice)
 
