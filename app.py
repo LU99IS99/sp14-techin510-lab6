@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 from dotenv import load_dotenv
 import streamlit as st
 import google.generativeai as genai
@@ -8,46 +9,47 @@ load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 model = genai.GenerativeModel('gemini-pro')
 
-# Function to generate questions and feedback using the Gemini model
-def ai_generate_content(prompt):
-    response = model.generate_content(prompt)
-    return response.text
+# Function to analyze financial data and generate advice
+def analyze_and_advise(data, career, annual_income):
+    # Example: Summarize expenses and categorize
+    data['Amount'] = pd.to_numeric(data['Amount'], errors='coerce')
+    monthly_expense = data.groupby(data['Date'].dt.to_period('M')).sum()
+    high_spending_categories = data.groupby('Category').sum().sort_values(by='Amount', ascending=False).head(3)
+    
+    # Generate financial advice taking career and income into account
+    advice_prompt = (
+        f"Generate personalized financial advice for a {career} earning {annual_income} annually, "
+        f"focusing on high spending in {', '.join(high_spending_categories.index.tolist())} and total monthly expenses."
+    )
+    advice = model.generate_content(advice_prompt)
+    return monthly_expense, high_spending_categories, advice.text
 
 # Main function
 def main():
-    st.title("Mental Health Companion 🌿")
-    
-    # Sidebar for user input about how they are feeling
-    st.sidebar.markdown("### How are you feeling today?")
-    emotion_rating = st.sidebar.slider("Rate your feelings (1 being the best, 5 being stressed):", 1, 5, 3)
+    st.title("Personal Finance Advisor 🏦")
 
-    # Generate a question based on the emotion rating
-    emotion_prompts = [
-        "Generate a comforting question for someone feeling at the top of their game.",
-        "Generate a motivational question for someone feeling slightly off their peak.",
-        "Generate a reflective question for someone feeling neutral.",
-        "Generate a supportive question for someone feeling a bit low.",
-        "Generate a deep question for someone feeling very stressed."
-    ]
-    question_prompt = emotion_prompts[emotion_rating - 1]  # Adjust index for 0-based array
-    question = ai_generate_content(question_prompt)
-    
-    # Display question and get user response
-    user_response = st.text_input("Reflect on this:", question)
+    # Sidebar for additional user input
+    st.sidebar.header("Your Details")
+    career = st.sidebar.text_input("Enter your career field")
+    annual_income = st.sidebar.number_input("Enter your annual income (in USD)", min_value=10000, max_value=1000000, step=1000)
 
-    # Generate feedback based on the user's emotional rating and their response
-    if st.button("Submit"):
-        feedback_prompt = [
-            "Generate positive feedback for a top-rated response:",
-            "Generate encouraging feedback for a good response:",
-            "Generate balanced feedback for a neutral response:",
-            "Generate reassuring feedback for a slightly negative response:",
-            "Generate supportive feedback for a stressed response:"
-        ]
-        feedback_query = feedback_prompt[emotion_rating - 1]  # Adjust index for 0-based array
-        feedback = ai_generate_content(f"{feedback_query} {user_response}")
-        st.success("Thank you for sharing. Here's something for you:")
-        st.info(feedback)
+    # File uploader for bank statements
+    uploaded_file = st.file_uploader("Upload your bank statement (CSV format)", type="csv")
+    if uploaded_file is not None:
+        data = pd.read_csv(uploaded_file)
+        data['Date'] = pd.to_datetime(data['Date'])
+        st.write("Data Uploaded Successfully!")
+        st.write(data.head())  # Display a preview of the data
+        
+        if st.button("Analyze and Advise"):
+            with st.spinner("Analyzing your expenses and generating advice..."):
+                monthly_expense, high_spending_categories, advice = analyze_and_advise(data, career, annual_income)
+                st.subheader("Monthly Expenses Summary")
+                st.bar_chart(monthly_expense)
+                st.subheader("High Spending Categories")
+                st.write(high_spending_categories)
+                st.subheader("Personalized Financial Advice")
+                st.write(advice)
 
 if __name__ == "__main__":
     main()
