@@ -1,28 +1,32 @@
 import os
-import pandas as pd
 from dotenv import load_dotenv
 import streamlit as st
 import google.generativeai as genai
+from PyPDF2 import PdfReader
 
 load_dotenv()
 
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 model = genai.GenerativeModel('gemini-pro')
 
+# Function to extract text from PDF file
+def get_text_from_pdf(file):
+    reader = PdfReader(file)
+    text = []
+    for page in reader.pages:
+        text.append(page.extract_text())
+    return "\n".join(text)
+
 # Function to analyze financial data and generate advice
-def analyze_and_advise(data, career, annual_income):
-    # Example: Summarize expenses and categorize
-    data['Amount'] = pd.to_numeric(data['Amount'], errors='coerce')
-    monthly_expense = data.groupby(data['Date'].dt.to_period('M')).sum()
-    high_spending_categories = data.groupby('Category').sum().sort_values(by='Amount', ascending=False).head(3)
-    
-    # Generate financial advice taking career and income into account
+def analyze_and_advise(text_data, career, annual_income):
+    # Here you would need to add actual data analysis logic based on the extracted text
+    # For now, let's just prepare a sample advice prompt
     advice_prompt = (
-        f"Generate personalized financial advice for a {career} earning {annual_income} annually, "
-        f"focusing on high spending in {', '.join(high_spending_categories.index.tolist())} and total monthly expenses."
+        f"Generate personalized financial advice for a {career} with an annual income in the range of {annual_income}, "
+        f"based on their financial transactions documented in the provided text."
     )
     advice = model.generate_content(advice_prompt)
-    return monthly_expense, high_spending_categories, advice.text
+    return advice.text
 
 # Main function
 def main():
@@ -31,23 +35,28 @@ def main():
     # Sidebar for additional user input
     st.sidebar.header("Your Details")
     career = st.sidebar.text_input("Enter your career field")
-    annual_income = st.sidebar.number_input("Enter your annual income (in USD)", min_value=10000, max_value=1000000, step=1000)
+    income_options = [
+        "Less than $10,000",
+        "$10,000 - $19,999",
+        "$20,000 - $29,999",
+        "$30,000 - $39,999",
+        "$40,000 - $49,999",
+        "$50,000 - $99,999",
+        "$100,000 - $149,999",
+        "More than $150,000"
+    ]
+    annual_income = st.sidebar.selectbox("Select your annual income range", income_options)
 
-    # File uploader for bank statements
-    uploaded_file = st.file_uploader("Upload your bank statement (CSV format)", type="csv")
+    # File uploader for bank statements in PDF format
+    uploaded_file = st.file_uploader("Upload your bank statement (PDF format)", type="pdf")
     if uploaded_file is not None:
-        data = pd.read_csv(uploaded_file)
-        data['Date'] = pd.to_datetime(data['Date'])
-        st.write("Data Uploaded Successfully!")
-        st.write(data.head())  # Display a preview of the data
+        text_data = get_text_from_pdf(uploaded_file)
+        st.write("Bank statement uploaded and processed successfully!")
+        st.text_area("Preview of extracted text:", text_data, height=250)
         
         if st.button("Analyze and Advise"):
-            with st.spinner("Analyzing your expenses and generating advice..."):
-                monthly_expense, high_spending_categories, advice = analyze_and_advise(data, career, annual_income)
-                st.subheader("Monthly Expenses Summary")
-                st.bar_chart(monthly_expense)
-                st.subheader("High Spending Categories")
-                st.write(high_spending_categories)
+            with st.spinner("Analyzing your financial data and generating advice..."):
+                advice = analyze_and_advise(text_data, career, annual_income)
                 st.subheader("Personalized Financial Advice")
                 st.write(advice)
 
