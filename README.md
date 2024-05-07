@@ -1,5 +1,5 @@
-# 🤖 ChatGPT Prompts
-
+# Personal Finance Advisor 🏦
+https://sp14-techin510-lab6-5vgjbpcb85zmcdbajeaanf.streamlit.app/
 ## Getting Started
 
 ```
